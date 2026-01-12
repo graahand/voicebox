@@ -1,0 +1,19 @@
+# MeloTTS and dependencies
+melo-tts
+unidic-lite
+soundfile
+
+# STT
+faster-whisper
+
+# LLM
+ollama
+
+# RAG - Vector embeddings and search
+sentence-transformers
+faiss-cpu
+nltk
+
+# Core dependencies
+torch
+numpy

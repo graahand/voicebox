@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  voicebox:
+    build: .
+    runtime: nvidia
+    network_mode: host
+    devices:
+      - /dev/snd
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+    environment:
+      - OLLAMA_HOST=http://localhost:11434
+      - TTS_DEVICE=auto
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
