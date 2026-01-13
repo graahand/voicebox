@@ -10,6 +10,12 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 from config.config import Config
+from config.logger import get_logger, suppress_library_warnings
+
+# Suppress third-party library warnings
+suppress_library_warnings()
+
+logger = get_logger('stt')
 
 
 class STTHandler:
@@ -58,19 +64,21 @@ class STTHandler:
         try:
             from faster_whisper import WhisperModel
             
-            print(f"Loading Whisper model: {self._model_size}")
+            logger.info(f"Loading Whisper model: {self._model_size} (device={self._device}, compute={self._compute_type})")
             self._model = WhisperModel(
                 self._model_size,
                 device=self._device,
                 compute_type=self._compute_type
             )
-            print("Whisper model initialized successfully")
+            logger.info("Whisper model initialized successfully")
             
         except ImportError as e:
+            logger.error("Error importing faster-whisper", exc_info=True)
             print(f"Error importing faster-whisper: {e}")
             print("Please install faster-whisper: pip install faster-whisper")
             self._model = None
         except Exception as e:
+            logger.warning(f"Error initializing STT model on {self._device}, trying CPU fallback", exc_info=True)
             print(f"Error initializing STT model: {e}")
             print(f"Trying CPU fallback...")
             try:
@@ -80,8 +88,10 @@ class STTHandler:
                     device="cpu",
                     compute_type="int8"
                 )
+                logger.info("Whisper model initialized on CPU (fallback)")
                 print("Whisper model initialized on CPU")
             except Exception as fallback_error:
+                logger.error("CPU fallback failed", exc_info=True)
                 print(f"CPU fallback failed: {fallback_error}")
                 self._model = None
     
@@ -100,14 +110,19 @@ class STTHandler:
                 Transcribed text and info dict, or (None, None) if failed.
         """
         if self._model is None:
+            logger.error("STT model not initialized")
             print("STT model not initialized")
             return None, None
         
         if not audio_path.exists():
+            logger.error(f"Audio file not found: {audio_path}")
             print(f"Audio file not found: {audio_path}")
             return None, None
         
         try:
+            logger.info(f"Transcribing audio file: {audio_path}")
+            logger.debug(f"Using beam_size={self._beam_size}, vad_filter={self._vad_filter}")
+            
             # Transcribe the audio
             segments, info = self._model.transcribe(
                 str(audio_path),
@@ -121,7 +136,7 @@ class STTHandler:
                 'language_probability': info.language_probability
             }
             
-            print(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
+            logger.info(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
             
             # Collect all segments into full text
             full_text: str = ""
@@ -134,9 +149,11 @@ class STTHandler:
                     'end': segment.end,
                     'text': segment.text
                 })
-                print(f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text}")
+                logger.debug(f"Segment [{segment.start:.2f}s -> {segment.end:.2f}s]: {segment.text}")
             
             full_text = full_text.strip()
+            logger.info(f"Transcription complete: {len(full_text)} characters, {len(segment_list)} segments")
+            logger.debug(f"Full text: {full_text}")
             
             # Combine info
             result_info: Dict[str, Any] = {
@@ -147,6 +164,7 @@ class STTHandler:
             return full_text, result_info
             
         except Exception as e:
+            logger.error("Error transcribing audio", exc_info=True)
             print(f"Error transcribing audio: {e}")
             return None, None
     

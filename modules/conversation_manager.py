@@ -12,6 +12,12 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 from config.config import Config
+from config.logger import get_logger, suppress_library_warnings
+
+# Suppress third-party library warnings
+suppress_library_warnings()
+
+logger = get_logger('conversation')
 
 
 class ConversationManager:
@@ -115,6 +121,7 @@ class ConversationManager:
         
         output_path: Path = Config.CONVERSATIONS_DIR / filename
         
+        logger.debug(f"Saving conversation to {output_path}")
         session_data: Dict[str, Any] = {
             'session_id': self._session_id,
             'session_start': self._session_start.isoformat(),
@@ -127,6 +134,7 @@ class ConversationManager:
         with open(output_path, 'w', encoding='utf-8') as file:
             json.dump(session_data, file, indent=2, ensure_ascii=False)
         
+        logger.info(f"Conversation saved: {output_path} ({len(self._session_log)} interactions)")
         print(f"Conversation saved to: {output_path}")
         return output_path
     
@@ -141,6 +149,7 @@ class ConversationManager:
             bool: True if loaded successfully, False otherwise.
         """
         try:
+            logger.info(f"Loading conversation from {filepath}")
             with open(filepath, 'r', encoding='utf-8') as file:
                 session_data: Dict[str, Any] = json.load(file)
             
@@ -148,10 +157,12 @@ class ConversationManager:
             self._conversation_history = session_data.get('conversation_history', [])
             self._session_log = session_data.get('interaction_log', [])
             
+            logger.info(f"Conversation loaded: {len(self._conversation_history)} messages, {len(self._session_log)} interactions")
             print(f"Conversation loaded from: {filepath}")
             return True
             
         except Exception as e:
+            logger.error(f"Error loading conversation from {filepath}", exc_info=True)
             print(f"Error loading conversation: {e}")
             return False
     
@@ -177,8 +188,10 @@ class ConversationManager:
         """
         Clear conversation history and logs.
         """
+        logger.info("Clearing conversation history")
         self._conversation_history.clear()
         self._session_log.clear()
+        logger.debug("Conversation history cleared")
         print("Conversation history cleared")
     
     def get_statistics(self) -> Dict[str, Any]:

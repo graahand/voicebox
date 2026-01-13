@@ -10,6 +10,12 @@ import sys
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 from config.config import Config
+from config.logger import get_logger, suppress_library_warnings
+
+# Suppress third-party library warnings
+suppress_library_warnings()
+
+logger = get_logger('tts')
 
 
 class TTSHandler:
@@ -58,22 +64,23 @@ class TTSHandler:
         try:
             from melo.api import TTS
             
-            print(f"Initializing MeloTTS model (language: {self._language}, device: {self._device})...")
+            logger.info(f"Initializing MeloTTS model (language: {self._language}, device: {self._device})")
             self._model = TTS(language=self._language, device=self._device)
             self._speaker_ids = self._model.hps.data.spk2id
             
-            print(f"MeloTTS model initialized successfully")
-            print(f"Available speakers: {list(self._speaker_ids.keys())}")
+            logger.info("MeloTTS model initialized successfully")
+            logger.info(f"Available speakers: {list(self._speaker_ids.keys())}")
             
             # Validate speaker
             if self._speaker not in self._speaker_ids:
                 available_speakers: str = ', '.join(self._speaker_ids.keys())
-                print(f"Warning: Speaker '{self._speaker}' not found. Available: {available_speakers}")
+                logger.warning(f"Speaker '{self._speaker}' not found. Available: {available_speakers}")
                 # Use first available speaker as fallback
                 self._speaker = list(self._speaker_ids.keys())[0]
-                print(f"Using fallback speaker: {self._speaker}")
+                logger.info(f"Using fallback speaker: {self._speaker}")
             
         except ImportError as e:
+            logger.error("Error importing MeloTTS", exc_info=True)
             print(f"Error importing MeloTTS: {e}")
             print("Please install MeloTTS:")
             print("  git clone https://github.com/myshell-ai/MeloTTS.git")
@@ -82,6 +89,7 @@ class TTSHandler:
             print("  python -m unidic download")
             self._model = None
         except Exception as e:
+            logger.error("Error initializing TTS model", exc_info=True)
             print(f"Error initializing TTS model: {e}")
             import traceback
             traceback.print_exc()
@@ -107,10 +115,12 @@ class TTSHandler:
             bool: True if successful, False otherwise.
         """
         if self._model is None:
+            logger.error("TTS model not initialized")
             print("TTS model not initialized")
             return False
         
         if not text or not text.strip():
+            logger.error("Empty text provided for TTS")
             print("Error: Empty text provided")
             return False
         
@@ -121,13 +131,15 @@ class TTSHandler:
             
             # Validate speaker
             if speaker_to_use not in self._speaker_ids:
+                logger.error(f"Speaker '{speaker_to_use}' not found")
                 print(f"Error: Speaker '{speaker_to_use}' not found")
                 return False
             
             # Get speaker ID
             speaker_id: int = self._speaker_ids[speaker_to_use]
             
-            print(f"Generating speech with speaker '{speaker_to_use}' at speed {speed_to_use}...")
+            logger.info(f"Generating speech (speaker={speaker_to_use}, speed={speed_to_use}, length={len(text)} chars)")
+            logger.debug(f"Text to synthesize: {text[:100]}...")
             
             # Generate and save audio
             self._model.tts_to_file(
@@ -137,10 +149,11 @@ class TTSHandler:
                 speed=speed_to_use
             )
             
-            print(f"Audio saved to: {output_path}")
+            logger.info(f"Audio saved to: {output_path}")
             return True
             
         except Exception as e:
+            logger.error("Error generating speech", exc_info=True)
             print(f"Error generating speech: {e}")
             import traceback
             traceback.print_exc()

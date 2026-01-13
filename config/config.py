@@ -27,7 +27,7 @@ class Config:
     SYSTEM_PROMPT_PATH: Path = CONFIG_DIR / "system_prompt.txt"
     
     # Model settings
-    LLM_MODEL: str = "smollm2:latest"
+    LLM_MODEL: str = "gemma3:270m"
     OLLAMA_HOST: str = "http://localhost:11434"
     
     # TTS settings (MeloTTS)
@@ -38,7 +38,7 @@ class Config:
     TTS_SAMPLE_RATE: int = 44100  # MeloTTS sample rate
     
     # STT settings
-    STT_MODEL_SIZE: str = "medium"
+    STT_MODEL_SIZE: str = "small"
     STT_DEVICE: str = "cuda"
     STT_COMPUTE_TYPE: str = "float16"
     STT_BEAM_SIZE: int = 5

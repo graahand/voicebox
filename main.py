@@ -15,11 +15,17 @@ import os
 sys.path.append(str(Path(__file__).parent))
 
 from config.config import Config
+from config.logger import get_logger, suppress_library_warnings
 from modules.llm_handler import LLMHandler
 from modules.tts_handler import TTSHandler
 from modules.stt_handler import STTHandler
 from modules.conversation_manager import ConversationManager
 from modules.response_formatter import ResponseFormatter
+
+# Suppress third-party library warnings
+suppress_library_warnings()
+
+logger = get_logger('main')
 
 
 class VoiceBoxController:
@@ -32,20 +38,44 @@ class VoiceBoxController:
         """
         Initialize the VoiceBox controller with all components.
         """
+        logger.info("Initializing VoiceBox...")
         print("Initializing VoiceBox...")
         
         # Ensure directories exist
         Config.ensure_directories()
+        logger.info("Directories ensured")
         
-        # Initialize all components (using singleton pattern)
-        self._llm: LLMHandler = LLMHandler()
-        self._tts: TTSHandler = TTSHandler()
-        self._stt: STTHandler = STTHandler()
-        self._conversation: ConversationManager = ConversationManager()
-        self._formatter: ResponseFormatter = ResponseFormatter()
-        
-        print("VoiceBox initialized successfully!")
-        print(f"Session ID: {self._conversation.session_id}")
+        try:
+            # Initialize all components (using singleton pattern)
+            logger.info("Initializing LLM handler...")
+            self._llm: LLMHandler = LLMHandler()
+            logger.info("LLM handler initialized")
+            
+            logger.info("Initializing TTS handler...")
+            self._tts: TTSHandler = TTSHandler()
+            logger.info("TTS handler initialized")
+            
+            logger.info("Initializing STT handler...")
+            self._stt: STTHandler = STTHandler()
+            logger.info("STT handler initialized")
+            
+            logger.info("Initializing conversation manager...")
+            self._conversation: ConversationManager = ConversationManager()
+            logger.info("Conversation manager initialized")
+            
+            logger.info("Initializing response formatter...")
+            self._formatter: ResponseFormatter = ResponseFormatter()
+            logger.info("Response formatter initialized")
+            
+            logger.info("VoiceBox initialized successfully!")
+            print("VoiceBox initialized successfully!")
+            print(f"Session ID: {self._conversation.session_id}")
+            logger.info(f"Session ID: {self._conversation.session_id}")
+            
+        except Exception as e:
+            logger.error("Failed to initialize VoiceBox", exc_info=True)
+            print(f"Initialization error: {e}")
+            raise
     
     def process_text_input(
         self,
@@ -64,58 +94,79 @@ class VoiceBoxController:
         Returns:
             Tuple[str, Optional[Path]]: Response text and audio file path (if generated).
         """
+        logger.info(f"Processing text input: {user_input}")
         print(f"\nUser: {user_input}")
         
         # Start timing
         start_time: float = time.time()
         
-        # Add user message to history
-        self._conversation.add_user_message(user_input)
-        
-        # Get conversation history for context (last 10 messages)
-        history = self._conversation.get_conversation_history(max_messages=10)
-        
-        # Generate LLM response
-        raw_response: str = self._llm.generate_response(user_input, history)
-        
-        # Format response for speech
-        formatted_response: str = self._formatter.format_full_response(raw_response)
-        
-        # Add assistant message to history
-        self._conversation.add_assistant_message(formatted_response)
-        
-        # Calculate response time
-        response_time: float = time.time() - start_time
-        
-        # Log the interaction
-        self._conversation.log_interaction(
-            user_query=user_input,
-            model_response=formatted_response,
-            response_time=response_time,
-            status="success"
-        )
-        
-        print(f"Assistant: {formatted_response}")
-        print(f"Response time: {response_time:.2f}s")
-        
-        # Generate audio if requested
-        audio_path: Optional[Path] = None
-        if generate_audio:
-            timestamp: str = time.strftime("%Y%m%d_%H%M%S")
-            filename: str = f"response_{timestamp}.wav"
-            audio_path = self._tts.generate_and_save(formatted_response, filename)
+        try:
+            # Add user message to history
+            logger.debug("Adding user message to history")
+            self._conversation.add_user_message(user_input)
             
-            # Play audio if requested and generation was successful
-            if play_audio and audio_path and audio_path.exists():
-                self._play_audio(audio_path)
-                # Delete the audio file after playing
-                try:
-                    audio_path.unlink()
-                    audio_path = None  # Set to None since file is deleted
-                except Exception as e:
-                    print(f"Warning: Could not delete audio file: {e}")
-        
-        return formatted_response, audio_path
+            # Get conversation history for context (last 10 messages)
+            logger.debug("Retrieving conversation history")
+            history = self._conversation.get_conversation_history(max_messages=10)
+            
+            # Generate LLM response
+            logger.info("Generating LLM response")
+            raw_response: str = self._llm.generate_response(user_input, history)
+            logger.debug(f"Raw response: {raw_response[:100]}...")
+            
+            # Format response for speech
+            logger.debug("Formatting response for speech")
+            formatted_response: str = self._formatter.format_full_response(raw_response)
+            logger.debug(f"Formatted response: {formatted_response[:100]}...")
+            
+            # Add assistant message to history
+            logger.debug("Adding assistant message to history")
+            self._conversation.add_assistant_message(formatted_response)
+            
+            # Calculate response time
+            response_time: float = time.time() - start_time
+            logger.info(f"Response generation time: {response_time:.2f}s")
+            
+            # Log the interaction
+            logger.debug("Logging interaction to conversation file")
+            self._conversation.log_interaction(
+                user_query=user_input,
+                model_response=formatted_response,
+                response_time=response_time,
+                status="success"
+            )
+            
+            print(f"Assistant: {formatted_response}")
+            print(f"Response time: {response_time:.2f}s")
+            
+            # Generate audio if requested
+            audio_path: Optional[Path] = None
+            if generate_audio:
+                logger.info("Generating audio from response")
+                timestamp: str = time.strftime("%Y%m%d_%H%M%S")
+                filename: str = f"response_{timestamp}.wav"
+                audio_path = self._tts.generate_and_save(formatted_response, filename)
+                logger.info(f"Audio generated: {audio_path}")
+                
+                # Play audio if requested and generation was successful
+                if play_audio and audio_path and audio_path.exists():
+                    logger.info("Playing audio")
+                    self._play_audio(audio_path)
+                    # Delete the audio file after playing
+                    try:
+                        audio_path.unlink()
+                        logger.debug("Audio file deleted after playback")
+                        audio_path = None  # Set to None since file is deleted
+                    except Exception as e:
+                        logger.warning(f"Could not delete audio file: {e}")
+                        print(f"Warning: Could not delete audio file: {e}")
+            
+            return formatted_response, audio_path
+            
+        except Exception as e:
+            logger.error("Error processing text input", exc_info=True)
+            print(f"Error: {e}")
+            raise
     
     def process_audio_input(
         self,
@@ -133,25 +184,38 @@ class VoiceBoxController:
             Tuple[Optional[str], Optional[str], Optional[Path]]: 
                 Transcribed text, response text, and audio file path (if generated).
         """
+        logger.info(f"Processing audio file: {audio_file_path}")
         print(f"\nProcessing audio file: {audio_file_path}")
         
-        # Transcribe audio to text
-        transcribed_text, stt_info = self._stt.transcribe_audio(audio_file_path)
-        
-        if transcribed_text is None:
-            print("Failed to transcribe audio")
+        try:
+            # Transcribe audio to text
+            logger.info("Transcribing audio to text")
+            transcribed_text, stt_info = self._stt.transcribe_audio(audio_file_path)
+            logger.debug(f"STT info: {stt_info}")
+            
+            if transcribed_text is None:
+                logger.error("Failed to transcribe audio")
+                print("Failed to transcribe audio")
+                return None, None, None
+            
+            logger.info(f"Transcribed text: {transcribed_text}")
+            print(f"Transcribed: {transcribed_text}")
+            
+            # Process the transcribed text
+            logger.info("Processing transcribed text through LLM and TTS")
+            response_text, audio_path = self.process_text_input(
+                transcribed_text,
+                generate_audio=generate_audio,
+                play_audio=True  # Always play audio in voice mode
+            )
+            logger.info("Audio processing complete")
+            
+            return transcribed_text, response_text, audio_path
+            
+        except Exception as e:
+            logger.error("Error processing audio input", exc_info=True)
+            print(f"Error: {e}")
             return None, None, None
-        
-        print(f"Transcribed: {transcribed_text}")
-        
-        # Process the transcribed text
-        response_text, audio_path = self.process_text_input(
-            transcribed_text,
-            generate_audio=generate_audio,
-            play_audio=True  # Always play audio in voice mode
-        )
-        
-        return transcribed_text, response_text, audio_path
     
     def _play_audio(self, audio_path: Path) -> None:
         """
@@ -194,9 +258,11 @@ class VoiceBoxController:
                 except (FileNotFoundError, subprocess.CalledProcessError):
                     continue  # Try next player
             
+            logger.warning("No audio player found")
             print(f"Warning: No audio player found. Audio saved to: {audio_path}")
             
         except Exception as e:
+            logger.error("Error playing audio", exc_info=True)
             print(f"Error playing audio: {e}")
     
     def _record_audio(self, duration: int = 6) -> Optional[Path]:
@@ -210,6 +276,7 @@ class VoiceBoxController:
             Optional[Path]: Path to recorded audio file, or None if failed.
         """
         try:
+            logger.info(f"Starting audio recording for {duration} seconds")
             # Create temporary file for recording
             temp_file = tempfile.NamedTemporaryFile(
                 suffix='.wav',
@@ -218,8 +285,9 @@ class VoiceBoxController:
             )
             temp_path = Path(temp_file.name)
             temp_file.close()
+            logger.debug(f"Recording to temporary file: {temp_path}")
             
-            print(f" Recording for {duration} seconds... Speak now!")
+            print(f"🎙️ Recording for {duration} seconds... Speak now!")
             
             # Try different recording methods
             recorders = [
@@ -233,6 +301,7 @@ class VoiceBoxController:
             
             for cmd in recorders:
                 try:
+                    logger.debug(f"Trying recorder: {cmd[0]}")
                     result = subprocess.run(
                         cmd,
                         stdout=subprocess.DEVNULL,
@@ -241,18 +310,22 @@ class VoiceBoxController:
                     )
                     
                     if temp_path.exists() and temp_path.stat().st_size > 0:
+                        logger.info(f"Recording complete: {temp_path.stat().st_size} bytes")
                         print("✓ Recording complete!")
                         return temp_path
                         
-                except (FileNotFoundError, subprocess.CalledProcessError):
+                except (FileNotFoundError, subprocess.CalledProcessError) as e:
+                    logger.debug(f"Recorder {cmd[0]} failed: {e}")
                     continue
             
+            logger.error("No recording tool found")
             print("Error: No recording tool found (arecord, ffmpeg, or sox required)")
             if temp_path.exists():
                 temp_path.unlink()
             return None
             
         except Exception as e:
+            logger.error("Error recording audio", exc_info=True)
             print(f"Error recording audio: {e}")
             return None
     
@@ -264,6 +337,7 @@ class VoiceBoxController:
         Args:
             recording_duration: Duration for each voice recording in seconds.
         """
+        logger.info(f"Starting voice interactive mode (duration={recording_duration}s)")
         print("\n" + "="*60)
         print("VoiceBox Voice Interactive Mode")
         print("Press ENTER to start recording, speak your message")
@@ -278,10 +352,12 @@ class VoiceBoxController:
                 
                 # Check for commands
                 if user_input in ['quit', 'exit', 'q']:
+                    logger.info("User requested exit from voice mode")
                     print("\nEnding conversation...")
                     break
                 
                 if user_input == 'stats':
+                    logger.debug("User requested statistics")
                     stats = self._conversation.get_statistics()
                     print("\nConversation Statistics:")
                     for key, value in stats.items():
@@ -289,18 +365,22 @@ class VoiceBoxController:
                     continue
                 
                 if user_input == 'text':
+                    logger.info("Switching to text mode")
                     print("\nSwitching to text mode...")
                     self.run_interactive_text_mode()
                     return
                 
                 # Record audio
+                logger.info("Starting voice recording")
                 audio_path = self._record_audio(duration=recording_duration)
                 
                 if audio_path is None:
+                    logger.warning("Audio recording failed")
                     print("Failed to record audio. Please try again.")
                     continue
                 
                 # Process the audio
+                logger.info("Processing recorded audio")
                 transcribed_text, response_text, response_audio = self.process_audio_input(
                     audio_path,
                     generate_audio=True
@@ -308,18 +388,23 @@ class VoiceBoxController:
                 
                 # Clean up temporary recording
                 if audio_path.exists():
+                    logger.debug("Cleaning up temporary recording")
                     audio_path.unlink()
                 
                 if transcribed_text is None:
+                    logger.warning("Transcription failed")
                     print("Failed to transcribe. Please try again.")
                 
             except KeyboardInterrupt:
+                logger.info("Voice mode interrupted by user (Ctrl+C)")
                 print("\n\nInterrupted by user")
                 break
             except Exception as e:
+                logger.error("Error in voice interactive mode", exc_info=True)
                 print(f"Error: {e}")
         
         # Save conversation before exiting
+        logger.info("Exiting voice mode")
         self._save_and_exit()
     
     def run_interactive_text_mode(self) -> None:
@@ -327,6 +412,7 @@ class VoiceBoxController:
         Run interactive text-based conversation mode.
         User types input, receives text and audio responses.
         """
+        logger.info("Starting text interactive mode")
         print("\n" + "="*60)
         print("VoiceBox Interactive Text Mode")
         print("Type your messages and press Enter")
@@ -343,10 +429,12 @@ class VoiceBoxController:
                 
                 # Check for commands
                 if user_input.lower() in ['quit', 'exit', 'q']:
+                    logger.info("User requested exit from text mode")
                     print("\nEnding conversation...")
                     break
                 
                 if user_input.lower() == 'stats':
+                    logger.debug("User requested statistics")
                     stats = self._conversation.get_statistics()
                     print("\nConversation Statistics:")
                     for key, value in stats.items():
@@ -354,20 +442,25 @@ class VoiceBoxController:
                     continue
                 
                 if user_input.lower() == 'voice':
+                    logger.info("Switching to voice mode")
                     print("\nSwitching to voice mode...")
                     self.run_voice_interactive_mode()
                     return
                 
                 # Process input with audio playback
+                logger.info(f"Processing text input: {user_input[:50]}...")
                 self.process_text_input(user_input, generate_audio=True, play_audio=True)
                 
             except KeyboardInterrupt:
+                logger.info("Text mode interrupted by user (Ctrl+C)")
                 print("\n\nInterrupted by user")
                 break
             except Exception as e:
+                logger.error("Error in text interactive mode", exc_info=True)
                 print(f"Error: {e}")
         
         # Save conversation before exiting
+        logger.info("Exiting text mode")
         self._save_and_exit()
     
     def run_hybrid_mode(self) -> None:
@@ -375,6 +468,7 @@ class VoiceBoxController:
         Run hybrid mode where user can choose between text or voice input each turn.
         Responses are always spoken.
         """
+        logger.info("Starting hybrid interactive mode")
         print("\n" + "="*60)
         print("VoiceBox Hybrid Interactive Mode")
         print("Choose input method for each message:")
@@ -392,10 +486,12 @@ class VoiceBoxController:
                 
                 # Check for commands
                 if user_input.lower() in ['quit', 'exit', 'q']:
+                    logger.info("User requested exit from hybrid mode")
                     print("\nEnding conversation...")
                     break
                 
                 if user_input.lower() == 'stats':
+                    logger.debug("User requested statistics")
                     stats = self._conversation.get_statistics()
                     print("\nConversation Statistics:")
                     for key, value in stats.items():
@@ -404,13 +500,16 @@ class VoiceBoxController:
                 
                 # Voice input
                 if user_input.lower() in ['v', 'voice']:
+                    logger.info("User selected voice input")
                     audio_path = self._record_audio(duration=5)
                     
                     if audio_path is None:
+                        logger.warning("Audio recording failed")
                         print("Failed to record audio. Please try again.")
                         continue
                     
                     # Process the audio
+                    logger.info("Processing voice input")
                     transcribed_text, response_text, response_audio = self.process_audio_input(
                         audio_path,
                         generate_audio=True
@@ -418,37 +517,46 @@ class VoiceBoxController:
                     
                     # Clean up temporary recording
                     if audio_path.exists():
+                        logger.debug("Cleaning up temporary recording")
                         audio_path.unlink()
                     
                     if transcribed_text is None:
+                        logger.warning("Transcription failed")
                         print("Failed to transcribe. Please try again.")
                 else:
                     # Text input
+                    logger.info(f"Processing text input: {user_input[:50]}...")
                     self.process_text_input(user_input, generate_audio=True, play_audio=True)
                 
             except KeyboardInterrupt:
+                logger.info("Hybrid mode interrupted by user (Ctrl+C)")
                 print("\n\nInterrupted by user")
                 break
             except Exception as e:
+                logger.error("Error in hybrid interactive mode", exc_info=True)
                 print(f"Error: {e}")
         
         # Save conversation before exiting
+        logger.info("Exiting hybrid mode")
         self._save_and_exit()
     
     def _save_and_exit(self) -> None:
         """
         Save conversation and display statistics before exiting.
         """
+        logger.info("Saving conversation and exiting")
         print("\n" + "="*60)
         
         # Show statistics
         stats = self._conversation.get_statistics()
+        logger.info(f"Session statistics: {stats}")
         print("Session Statistics:")
         for key, value in stats.items():
             print(f"  {key}: {value}")
         
         # Save conversation
         saved_path: Path = self._conversation.save_conversation()
+        logger.info(f"Conversation saved to: {saved_path}")
         print(f"\nConversation saved to: {saved_path}")
         print("Thank you for using VoiceBox!")
         print("="*60)
@@ -469,7 +577,12 @@ def main() -> None:
     Main entry point for VoiceBox application.
     """
     try:
+        logger.info("="*60)
+        logger.info("VoiceBox application starting")
+        logger.info("="*60)
+        
         # Create controller
+        logger.info("Creating VoiceBox controller")
         controller: VoiceBoxController = VoiceBoxController()
         
         # Ask user for mode preference
@@ -482,18 +595,25 @@ def main() -> None:
             mode = input("\nEnter mode (1/2/3) [default: 3]: ").strip()
             
             if not mode or mode == '3':
+                logger.info("User selected hybrid mode")
                 controller.run_hybrid_mode()
                 break
             elif mode == '1':
+                logger.info("User selected text mode")
                 controller.run_interactive_text_mode()
                 break
             elif mode == '2':
+                logger.info("User selected voice mode")
                 controller.run_voice_interactive_mode()
                 break
             else:
+                logger.debug(f"Invalid mode selection: {mode}")
                 print("Invalid choice. Please enter 1, 2, or 3.")
         
+        logger.info("VoiceBox application ended normally")
+        
     except Exception as e:
+        logger.error("Fatal error in main", exc_info=True)
         print(f"Fatal error: {e}")
         import traceback
         traceback.print_exc()

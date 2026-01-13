@@ -231,13 +231,6 @@ STT_COMPUTE_TYPE = "int8"
 Ensure Ollama is running:
 ```bash
 ollama serve
-```
-
-### KokoroTTS Import Errors
-Ensure espeak-ng is installed and kokoro is properly installed:
-```bash
-pip install --upgrade kokoro>=0.9.2
-```
 
 ## Contributing
 
@@ -255,6 +248,6 @@ Developed by Skill Museum.
 ## Acknowledgments
 
 - **Ollama**: LLM backend framework
-- **KokoroTTS**: Text-to-Speech engine
+- **MeloTTS**: Text-to-Speech engine
 - **faster-whisper**: Speech-to-Text engine
 - **SmolLM2**: Lightweight language model by Hugging Face

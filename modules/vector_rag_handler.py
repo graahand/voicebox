@@ -13,6 +13,12 @@ import numpy as np
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 from config.config import Config
+from config.logger import get_logger, suppress_library_warnings
+
+# Suppress third-party library warnings
+suppress_library_warnings()
+
+logger = get_logger('vector_rag')
 
 
 class VectorRAGHandler:
@@ -67,51 +73,49 @@ class VectorRAGHandler:
         try:
             from sentence_transformers import SentenceTransformer
             
-            print(f"Loading embedding model: {Config.RAG_EMBEDDING_MODEL}")
+            logger.info(f"Loading embedding model: {Config.RAG_EMBEDDING_MODEL}")
             self._embedding_model = SentenceTransformer(Config.RAG_EMBEDDING_MODEL)
-            print(f"Embedding model loaded (dim={Config.RAG_VECTOR_DIMENSION})")
+            logger.info(f"Embedding model loaded (dim={Config.RAG_VECTOR_DIMENSION})")
             
-        except ImportError:
-            print("Error: sentence-transformers not installed")
-            print("Install with: pip install sentence-transformers")
+        except ImportError as e:
+            logger.error("sentence-transformers not installed")
+            logger.error("Install with: pip install sentence-transformers")
             self._embedding_model = None
         except Exception as e:
-            print(f"Error loading embedding model: {e}")
+            logger.error(f"Error loading embedding model: {e}", exc_info=True)
             self._embedding_model = None
     
     def _load_and_process_document(self) -> None:
         """Load document, chunk it, generate embeddings, and build FAISS index."""
         if self._embedding_model is None:
-            print("Cannot process document: embedding model not loaded")
+            logger.warning("Cannot process document: embedding model not loaded")
             return
         
         try:
             # Load document
             if not self._source_file.exists():
-                print(f"Warning: Source file not found: {self._source_file}")
+                logger.warning(f"Source file not found: {self._source_file}")
                 return
             
             with open(self._source_file, 'r', encoding='utf-8') as file:
                 full_text = file.read()
             
-            print(f"RAG: Loaded document from {self._source_file}")
+            logger.info(f"Loaded document from {self._source_file} ({len(full_text)} chars)")
             
             # Semantic chunking
             self._chunks, self._chunk_metadata = self._semantic_chunking(full_text)
-            print(f"RAG: Created {len(self._chunks)} semantic chunks")
+            logger.info(f"Created {len(self._chunks)} semantic chunks")
             
             # Generate embeddings
             self._embeddings = self._generate_embeddings(self._chunks)
-            print(f"RAG: Generated embeddings ({self._embeddings.shape})")
+            logger.info(f"Generated embeddings (shape={self._embeddings.shape})")
             
             # Build FAISS index
             self._build_faiss_index()
-            print(f"RAG: Built FAISS index (type={Config.RAG_FAISS_INDEX_TYPE})")
+            logger.info(f"Built FAISS index (type={Config.RAG_FAISS_INDEX_TYPE})")
             
         except Exception as e:
-            print(f"Error processing document: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error processing document: {e}", exc_info=True)
     
     def _semantic_chunking(self, text: str) -> Tuple[List[str], List[Dict[str, Any]]]:
         """
@@ -200,27 +204,30 @@ class VectorRAGHandler:
             return np.array([])
         
         try:
+            logger.debug(f"Generating embeddings for {len(texts)} chunks")
             embeddings = self._embedding_model.encode(
                 texts,
                 convert_to_numpy=True,
                 show_progress_bar=False,
                 normalize_embeddings=True  # L2 normalize for cosine similarity
             )
+            logger.debug("Embeddings generated successfully")
             return embeddings
         except Exception as e:
-            print(f"Error generating embeddings: {e}")
+            logger.error(f"Error generating embeddings: {e}", exc_info=True)
             return np.array([])
     
     def _build_faiss_index(self) -> None:
         """Build FAISS index for similarity search."""
         if self._embeddings is None or len(self._embeddings) == 0:
-            print("Cannot build index: no embeddings available")
+            logger.warning("Cannot build index: no embeddings available")
             return
         
         try:
             import faiss
             
             dimension = self._embeddings.shape[1]
+            logger.debug(f"Building FAISS index with dimension={dimension}")
             
             if Config.RAG_FAISS_INDEX_TYPE.lower() == "flat":
                 # Flat index for exact search (cosine similarity via inner product on normalized vectors)
@@ -231,13 +238,14 @@ class VectorRAGHandler:
             
             # Add vectors to index
             self._index.add(self._embeddings.astype('float32'))
+            logger.info(f"FAISS index built successfully with {self._embeddings.shape[0]} vectors")
             
-        except ImportError:
-            print("Error: faiss not installed")
-            print("Install with: pip install faiss-cpu")
+        except ImportError as e:
+            logger.error("faiss not installed", exc_info=True)
+            logger.error("Install with: pip install faiss-cpu")
             self._index = None
         except Exception as e:
-            print(f"Error building FAISS index: {e}")
+            logger.error(f"Error building FAISS index: {e}", exc_info=True)
             self._index = None
     
     def search_context(self, query: str, max_chunks: Optional[int] = None) -> str:
@@ -309,7 +317,7 @@ class VectorRAGHandler:
             return "\n\n".join(context_parts)
             
         except Exception as e:
-            print(f"Error during search: {e}")
+            logger.error(f"Error during search: {e}", exc_info=True)
             return ""
     
     def is_futuruma_related(self, query: str) -> bool:

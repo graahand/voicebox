@@ -11,6 +11,12 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 from config.config import Config
+from config.logger import get_logger, suppress_library_warnings
+
+# Suppress third-party library warnings
+suppress_library_warnings()
+
+logger = get_logger('llm')
 
 
 class LLMHandler:
@@ -63,20 +69,21 @@ class LLMHandler:
             if Config.RAG_SEARCH_METHOD.lower() == "faiss":
                 from modules.vector_rag_handler import VectorRAGHandler
                 self._rag_handler = VectorRAGHandler()
-                print(f"Vector RAG handler initialized (FAISS + {Config.RAG_EMBEDDING_MODEL})")
+                logger.info(f"Vector RAG handler initialized (FAISS + {Config.RAG_EMBEDDING_MODEL})")
             else:
                 # Fall back to keyword-based RAG
                 from modules.rag_handler import RAGHandler
                 self._rag_handler = RAGHandler()
-                print("RAG handler initialized successfully (keyword-based)")
+                logger.info("RAG handler initialized (keyword-based)")
         except Exception as e:
-            print(f"Warning: Could not initialize RAG handler: {e}")
+            logger.warning(f"Could not initialize RAG handler: {e}")
             # Try fallback to keyword RAG
             try:
                 from modules.rag_handler import RAGHandler
                 self._rag_handler = RAGHandler()
-                print("Fallback: Using keyword-based RAG")
-            except:
+                logger.info("Fallback: Using keyword-based RAG")
+            except Exception as fallback_e:
+                logger.error(f"Failed to initialize both RAG handlers: {fallback_e}", exc_info=True)
                 self._rag_handler = None
     
     def _verify_model(self) -> None:
@@ -87,11 +94,17 @@ class LLMHandler:
             response = ollama.list()
             available_models: list[str] = [model.model for model in response.models]
             
+            logger.info(f"Checking for model: {self._model_name}")
+            logger.debug(f"Available models: {available_models}")
+            
             if self._model_name not in available_models:
-                print(f"Warning: Model {self._model_name} not found. Available models: {available_models}")
-                print(f"Please run: ollama pull {self._model_name}")
+                logger.warning(f"Model {self._model_name} not found in available models")
+                logger.warning(f"Available models: {', '.join(available_models)}")
+                logger.warning(f"To install, run: ollama pull {self._model_name}")
+            else:
+                logger.info(f"Model {self._model_name} verified successfully")
         except Exception as e:
-            print(f"Error verifying model: {e}")
+            logger.error(f"Error verifying model: {e}", exc_info=True)
     
     def generate_response(
         self,
@@ -112,9 +125,12 @@ class LLMHandler:
             # Check if RAG context is needed
             rag_context = ""
             if self._rag_handler and self._rag_handler.is_futuruma_related(user_input):
+                logger.debug(f"Query is Futuruma-related, retrieving context")
                 rag_context = self._rag_handler.search_context(user_input)
                 if rag_context:
-                    print("RAG: Using Futuruma knowledge base")
+                    logger.info(f"RAG: Retrieved {len(rag_context)} chars of context")
+                else:
+                    logger.debug("RAG: No relevant context found for query")
             
             # Build system prompt with RAG context if available
             system_prompt = self._system_prompt
@@ -157,11 +173,12 @@ CRITICAL INSTRUCTIONS:
             
             # Extract response text
             response_text: str = response['message']['content']
+            logger.debug(f"Generated response ({len(response_text)} chars)")
             return response_text.strip()
             
         except Exception as e:
             error_message: str = f"Error generating LLM response: {e}"
-            print(error_message)
+            logger.error(error_message, exc_info=True)
             return "I apologize, but I'm having trouble generating a response right now."
     
     @property
