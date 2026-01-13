@@ -1,7 +1,7 @@
 FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Install system dependencies including ALSA for audio recording
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     espeak-ng \
     ffmpeg \
@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     mecab \
     libmecab-dev \
     mecab-ipadic-utf8 \
+    libsox-fmt-all \
+    sox \
+    alsa-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -20,7 +23,7 @@ RUN echo "Installing MeloTTS..." && \
     git clone https://github.com/myshell-ai/MeloTTS.git /tmp/MeloTTS && \
     cd /tmp/MeloTTS && \
     pip install --no-cache-dir -e . && \
-    python -m unidic download && \
+    python3 -m unidic download && \
     rm -rf /tmp/MeloTTS/.git
 
 # Copy requirements and install Python dependencies
@@ -34,4 +37,4 @@ COPY . .
 EXPOSE 8000
 
 # Run the main application
-CMD ["python", "main.py"]
+CMD ["python3", "main.py"]

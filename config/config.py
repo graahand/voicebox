@@ -43,6 +43,7 @@ class Config:
     STT_COMPUTE_TYPE: str = "float16"
     STT_BEAM_SIZE: int = 5
     STT_VAD_FILTER: bool = True
+    STT_CONFIDENCE_THRESHOLD: float = 0.5  # Minimum confidence for a transcription to be accepted (0.0 to 1.0)
     
     # LLM generation settings
     MAX_RESPONSE_LENGTH: int = 200
