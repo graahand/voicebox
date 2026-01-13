@@ -27,12 +27,12 @@ class Config:
     SYSTEM_PROMPT_PATH: Path = CONFIG_DIR / "system_prompt.txt"
     
     # Model settings
-    LLM_MODEL: str = "gemma3:270m"
+    LLM_MODEL: str = "qwen2:1.5b"
     OLLAMA_HOST: str = "http://localhost:11434"
     
     # TTS settings (MeloTTS)
     TTS_LANGUAGE: str = "EN"  # Language code for MeloTTS
-    TTS_SPEAKER: str = "EN_INDIA"  # Speaker accent (EN-US, EN-BR, EN_INDIA, EN-AU, EN-Default)
+    TTS_SPEAKER: str = "EN-AU"  # Speaker accent (EN-US, EN-BR, EN_INDIA, EN-AU, EN-Default)
     TTS_SPEED: float = 1.0  # Speech speed (adjustable)
     TTS_DEVICE: str = "auto"  # Device: 'auto', 'cpu', 'cuda', 'cuda:0', 'mps'
     TTS_SAMPLE_RATE: int = 44100  # MeloTTS sample rate
@@ -47,24 +47,28 @@ class Config:
     
     # LLM generation settings
     MAX_RESPONSE_LENGTH: int = 200
-    TEMPERATURE: float = 0.1
+    TEMPERATURE: float = 0.5
     
     # RAG settings
-    RAG_TOP_K: int = 2  # Number of top sections to retrieve
-    RAG_MIN_SCORE: float = 0.7  # Minimum score threshold for retrieval (deprecated for vector search)
-    RAG_SCORE_THRESHOLD: float = 0.85  # Cosine similarity threshold (0.0 to 1.0)
-    RAG_MAX_CONTEXT_LENGTH: int = 1000  # Maximum context length in characters
+    RAG_TOP_K: int = 5  # Number of top sections to retrieve
+    RAG_MIN_SCORE: float = 0.7  # Minimum score threshold for retrieval (deprecated)
+    RAG_SCORE_THRESHOLD: float = 0.7  # Similarity threshold (0.0 to 1.0, lower = more results)
+    RAG_MAX_CONTEXT_LENGTH: int = 1500  # Maximum context length in characters
     RAG_KEYWORD_BOOST: float = 5.0  # Score boost for section name matches (deprecated)
-    RAG_SEARCH_METHOD: str = "semantic"  # Search method: 'keyword', 'faiss', 'semantic'
+    RAG_SEARCH_METHOD: str = "langchain"  # Search method: 'langchain' (recommended), 'faiss', 'keyword'
     RAG_CONTEXT_PRIORITY: bool = True  # Prioritize RAG context over general knowledge
     
     # Vector embeddings settings for RAG
-    RAG_EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"  # sentence-transformers model
-    RAG_VECTOR_DIMENSION: int = 384  # Embedding dimension (384 for MiniLM, 768 for larger models)
-    RAG_CHUNK_SIZE: int = 100  # Target chunk size in characters for semantic chunking
-    RAG_CHUNK_OVERLAP: int = 50  # Overlap between chunks in characters
-    RAG_FAISS_INDEX_TYPE: str = "IVF"  # FAISS index type: 'Flat' (exact), 'IVF', 'HNSW'
-    RAG_SIMILARITY_METRIC: str = "dot"  # Similarity metric: 'cosine', 'euclidean', 'dot'
+    # Note: ibm-granite/granite-embedding-english-r2 has 8192 token limit
+    RAG_EMBEDDING_MODEL: str = "ibm-granite/granite-embedding-english-r2"  # Granite model with 8192 token context
+    RAG_VECTOR_DIMENSION: int = 768  # Embedding dimension (768 for Granite)
+    RAG_CHUNK_SIZE: int = 1024  # Target chunk size in characters (larger for Granite)
+    RAG_CHUNK_OVERLAP: int = 100  # Overlap between chunks in characters
+    RAG_FAISS_INDEX_TYPE: str = "Flat"  # FAISS index type (deprecated, using ChromaDB)
+    RAG_SIMILARITY_METRIC: str = "cosine"  # Similarity metric
+    
+    # Source data file
+    RAG_SOURCE_FILE: str = "source_data_structured.md"  # Structured source data
     
     @classmethod
     def load_system_prompt(cls) -> str:

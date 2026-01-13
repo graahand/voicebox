@@ -73,4 +73,7 @@ The fist futuruma event was held on 2024 in 10 different cities of Nepal where w
 around 50000
 
 
+### When is futuruma happening
 
+Futuruma is happening from 12 January to 25 January, 2026 in five different cities of Nepal.
+These cities includes Butwal, Itahari, Beeratnagar, Chit-wan and Beer-gunja

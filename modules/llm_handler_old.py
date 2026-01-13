@@ -1,10 +1,10 @@
 """
 LLM Handler module for VoiceBox project.
-Manages interaction with Ollama LLM using singleton pattern with LangChain RAG support.
+Manages interaction with Ollama LLM using singleton pattern with RAG support.
 """
 
 import ollama
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 import sys
 from pathlib import Path
 
@@ -22,7 +22,7 @@ logger = get_logger('llm')
 class LLMHandler:
     """
     Singleton class for handling LLM operations with Ollama.
-    Manages model initialization and response generation with LangChain RAG.
+    Manages model initialization and response generation.
     """
     
     _instance: Optional['LLMHandler'] = None
@@ -62,25 +62,29 @@ class LLMHandler:
     
     def _init_rag(self) -> None:
         """
-        Initialize the LangChain RAG handler.
+        Initialize the RAG handler.
         """
         try:
-            from modules.langchain_rag_handler import LangChainRAGHandler
-            self._rag_handler = LangChainRAGHandler()
-            
-            if self._rag_handler.is_ready:
-                logger.info("LangChain RAG handler initialized successfully")
+            # Use vector RAG if configured for FAISS search
+            if Config.RAG_SEARCH_METHOD.lower() == "faiss":
+                from modules.vector_rag_handler import VectorRAGHandler
+                self._rag_handler = VectorRAGHandler()
+                logger.info(f"Vector RAG handler initialized (FAISS + {Config.RAG_EMBEDDING_MODEL})")
             else:
-                logger.warning("LangChain RAG handler initialized but not ready")
-                self._rag_handler = None
-                
-        except ImportError as e:
-            logger.warning(f"Could not import LangChain RAG: {e}")
-            logger.warning("Install with: pip install langchain langchain-community chromadb")
-            self._rag_handler = None
+                # Fall back to keyword-based RAG
+                from modules.rag_handler import RAGHandler
+                self._rag_handler = RAGHandler()
+                logger.info("RAG handler initialized (keyword-based)")
         except Exception as e:
-            logger.error(f"Failed to initialize RAG handler: {e}", exc_info=True)
-            self._rag_handler = None
+            logger.warning(f"Could not initialize RAG handler: {e}")
+            # Try fallback to keyword RAG
+            try:
+                from modules.rag_handler import RAGHandler
+                self._rag_handler = RAGHandler()
+                logger.info("Fallback: Using keyword-based RAG")
+            except Exception as fallback_e:
+                logger.error(f"Failed to initialize both RAG handlers: {fallback_e}", exc_info=True)
+                self._rag_handler = None
     
     def _verify_model(self) -> None:
         """
@@ -106,7 +110,7 @@ class LLMHandler:
         self,
         user_input: str,
         conversation_history: Optional[List[Dict[str, str]]] = None
-    ) -> Tuple[str, List[Dict[str, Any]]]:
+    ) -> str:
         """
         Generate a response from the LLM with RAG support.
         
@@ -115,19 +119,16 @@ class LLMHandler:
             conversation_history: Optional conversation history for context.
         
         Returns:
-            Tuple of (response_text, source_attributions)
+            str: The generated response text.
         """
         try:
-            # Always try to get RAG context (no topic filtering - dynamic RAG)
+            # Check if RAG context is needed
             rag_context = ""
-            attributions = []
-            
-            if self._rag_handler:
-                logger.debug(f"Retrieving RAG context for: {user_input}")
-                rag_context, attributions = self._rag_handler.search_context(user_input)
-                
+            if self._rag_handler and self._rag_handler.is_futuruma_related(user_input):
+                logger.debug(f"Query is Futuruma-related, retrieving context")
+                rag_context = self._rag_handler.search_context(user_input)
                 if rag_context:
-                    logger.info(f"RAG: Retrieved {len(rag_context)} chars from {len(attributions)} sources")
+                    logger.info(f"RAG: Retrieved {len(rag_context)} chars of context")
                 else:
                     logger.debug("RAG: No relevant context found for query")
             
@@ -136,15 +137,16 @@ class LLMHandler:
             if rag_context:
                 system_prompt = f"""{self._system_prompt}
 
-IMPORTANT: Use the following verified information to answer questions:
+### IMPORTANT: Use ONLY the following verified information about Futuruma:
 
 {rag_context}
 
-INSTRUCTIONS:
-- Answer the user's question directly using the information above
-- Do NOT start with greetings if the user asked a specific question
+CRITICAL INSTRUCTIONS:
+- When answering about Futuruma, use ONLY the information provided above
+- Futuruma is NOT an animated series - it is a tech fest in Nepal
+- Do NOT make up or assume information that is not in the provided context
+- If asked about something not covered in the context, say you don't have that specific information
 - Keep responses brief, conversational, and easy to speak aloud
-- If the information above does not contain the answer, say you do not have that information
 """
             
             # Build messages
@@ -152,11 +154,9 @@ INSTRUCTIONS:
                 {'role': 'system', 'content': system_prompt}
             ]
             
-            # Add conversation history if provided (but limit to avoid confusion)
-            if conversation_history and len(conversation_history) > 0:
-                # Only use last 4 messages to avoid context confusion
-                recent_history = conversation_history[-4:]
-                messages.extend(recent_history)
+            # Add conversation history if provided
+            if conversation_history:
+                messages.extend(conversation_history)
             
             # Add current user input
             messages.append({'role': 'user', 'content': user_input})
@@ -174,28 +174,12 @@ INSTRUCTIONS:
             # Extract response text
             response_text: str = response['message']['content']
             logger.debug(f"Generated response ({len(response_text)} chars)")
-            
-            return response_text.strip(), attributions
+            return response_text.strip()
             
         except Exception as e:
             error_message: str = f"Error generating LLM response: {e}"
             logger.error(error_message, exc_info=True)
-            return "I apologize, but I'm having trouble generating a response right now.", []
-    
-    def get_source_attribution_text(self, attributions: List[Dict[str, Any]]) -> str:
-        """
-        Get formatted source attribution text.
-        
-        Args:
-            attributions: List of source attributions from RAG.
-        
-        Returns:
-            Formatted attribution string.
-        """
-        if not attributions or not self._rag_handler:
-            return ""
-        
-        return self._rag_handler.get_source_attribution_text(attributions)
+            return "I apologize, but I'm having trouble generating a response right now."
     
     @property
     def model_name(self) -> str:
@@ -216,11 +200,6 @@ INSTRUCTIONS:
             str: The system prompt.
         """
         return self._system_prompt
-    
-    @property
-    def rag_enabled(self) -> bool:
-        """Check if RAG is enabled and ready."""
-        return self._rag_handler is not None and self._rag_handler.is_ready
 
 
 def main() -> None:
@@ -229,17 +208,12 @@ def main() -> None:
     """
     llm: LLMHandler = LLMHandler()
     print(f"LLM Handler initialized with model: {llm.model_name}")
-    print(f"RAG enabled: {llm.rag_enabled}")
     
     # Test response generation
-    test_input: str = "What is laser tag project?"
+    test_input: str = "Hello, how are you?"
     print(f"\nTest input: {test_input}")
-    response, attributions = llm.generate_response(test_input)
+    response: str = llm.generate_response(test_input)
     print(f"Response: {response}")
-    
-    if attributions:
-        print(f"\nSources:")
-        print(llm.get_source_attribution_text(attributions))
 
 
 if __name__ == '__main__':

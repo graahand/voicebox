@@ -9,11 +9,22 @@ faster-whisper
 # LLM
 ollama
 
-# RAG - Vector embeddings and search
+# RAG - LangChain with ChromaDB (recommended)
+langchain>=0.1.0
+langchain-community>=0.0.10
+chromadb>=0.4.0
+
+# RAG - Embeddings (BGE model - 512 token context, better than MiniLM)
 sentence-transformers
+
+# Legacy RAG support (optional)
 faiss-cpu
 nltk
 
 # Core dependencies
 torch
 numpy
+
+# Testing
+pytest>=7.0.0
+pytest-cov

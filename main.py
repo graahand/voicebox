@@ -109,9 +109,17 @@ class VoiceBoxController:
             logger.debug("Retrieving conversation history")
             history = self._conversation.get_conversation_history(max_messages=10)
             
-            # Generate LLM response
+            # Generate LLM response with RAG
             logger.info("Generating LLM response")
-            raw_response: str = self._llm.generate_response(user_input, history)
+            result = self._llm.generate_response(user_input, history)
+            
+            # Handle both old format (string) and new format (tuple with attributions)
+            if isinstance(result, tuple):
+                raw_response, attributions = result
+            else:
+                raw_response = result
+                attributions = []
+            
             logger.debug(f"Raw response: {raw_response[:100]}...")
             
             # Format response for speech
@@ -138,6 +146,13 @@ class VoiceBoxController:
             
             print(f"Assistant: {formatted_response}")
             print(f"Response time: {response_time:.2f}s")
+            
+            # Print source attributions if available
+            if attributions:
+                attribution_text = self._llm.get_source_attribution_text(attributions)
+                if attribution_text:
+                    print(f"\n{attribution_text}")
+                    logger.info(f"Sources: {[a.get('section', 'Unknown') for a in attributions]}")
             
             # Generate audio if requested
             audio_path: Optional[Path] = None
@@ -287,7 +302,7 @@ class VoiceBoxController:
             temp_file.close()
             logger.debug(f"Recording to temporary file: {temp_path}")
             
-            print(f"🎙️ Recording for {duration} seconds... Speak now!")
+            print(f"[Recording] Recording for {duration} seconds... Speak now!")
             
             # Try different recording methods
             recorders = [
@@ -463,83 +478,6 @@ class VoiceBoxController:
         logger.info("Exiting text mode")
         self._save_and_exit()
     
-    def run_hybrid_mode(self) -> None:
-        """
-        Run hybrid mode where user can choose between text or voice input each turn.
-        Responses are always spoken.
-        """
-        logger.info("Starting hybrid interactive mode")
-        print("\n" + "="*60)
-        print("VoiceBox Hybrid Interactive Mode")
-        print("Choose input method for each message:")
-        print("  - Type 'v' or 'voice' then ENTER to speak")
-        print("  - Type your message directly for text input")
-        print("Commands: 'quit' or 'exit' to stop, 'stats' for statistics")
-        print("="*60 + "\n")
-        
-        while True:
-            try:
-                user_input: str = input("You (text/voice/command): ").strip()
-                
-                if not user_input:
-                    continue
-                
-                # Check for commands
-                if user_input.lower() in ['quit', 'exit', 'q']:
-                    logger.info("User requested exit from hybrid mode")
-                    print("\nEnding conversation...")
-                    break
-                
-                if user_input.lower() == 'stats':
-                    logger.debug("User requested statistics")
-                    stats = self._conversation.get_statistics()
-                    print("\nConversation Statistics:")
-                    for key, value in stats.items():
-                        print(f"  {key}: {value}")
-                    continue
-                
-                # Voice input
-                if user_input.lower() in ['v', 'voice']:
-                    logger.info("User selected voice input")
-                    audio_path = self._record_audio(duration=5)
-                    
-                    if audio_path is None:
-                        logger.warning("Audio recording failed")
-                        print("Failed to record audio. Please try again.")
-                        continue
-                    
-                    # Process the audio
-                    logger.info("Processing voice input")
-                    transcribed_text, response_text, response_audio = self.process_audio_input(
-                        audio_path,
-                        generate_audio=True
-                    )
-                    
-                    # Clean up temporary recording
-                    if audio_path.exists():
-                        logger.debug("Cleaning up temporary recording")
-                        audio_path.unlink()
-                    
-                    if transcribed_text is None:
-                        logger.warning("Transcription failed")
-                        print("Failed to transcribe. Please try again.")
-                else:
-                    # Text input
-                    logger.info(f"Processing text input: {user_input[:50]}...")
-                    self.process_text_input(user_input, generate_audio=True, play_audio=True)
-                
-            except KeyboardInterrupt:
-                logger.info("Hybrid mode interrupted by user (Ctrl+C)")
-                print("\n\nInterrupted by user")
-                break
-            except Exception as e:
-                logger.error("Error in hybrid interactive mode", exc_info=True)
-                print(f"Error: {e}")
-        
-        # Save conversation before exiting
-        logger.info("Exiting hybrid mode")
-        self._save_and_exit()
-    
     def _save_and_exit(self) -> None:
         """
         Save conversation and display statistics before exiting.
@@ -589,16 +527,11 @@ def main() -> None:
         print("\nSelect interaction mode:")
         print("  1. Text Mode - Type your messages (responses will be spoken)")
         print("  2. Voice Mode - Speak your messages (responses will be spoken)")
-        print("  3. Hybrid Mode - Choose text or voice for each message")
         
         while True:
-            mode = input("\nEnter mode (1/2/3) [default: 3]: ").strip()
+            mode = input("\nEnter mode (1/2) [default: 1]: ").strip()
             
-            if not mode or mode == '3':
-                logger.info("User selected hybrid mode")
-                controller.run_hybrid_mode()
-                break
-            elif mode == '1':
+            if not mode or mode == '1':
                 logger.info("User selected text mode")
                 controller.run_interactive_text_mode()
                 break
@@ -608,7 +541,7 @@ def main() -> None:
                 break
             else:
                 logger.debug(f"Invalid mode selection: {mode}")
-                print("Invalid choice. Please enter 1, 2, or 3.")
+                print("Invalid choice. Please enter 1 or 2.")
         
         logger.info("VoiceBox application ended normally")
         

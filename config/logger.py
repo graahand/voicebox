@@ -119,8 +119,37 @@ def get_logger(module_name: str) -> logging.Logger:
 
 def suppress_library_warnings() -> None:
     """Suppress warnings from third-party libraries."""
+    import warnings
+    
+    # Suppress Python warnings
+    warnings.filterwarnings('ignore', category=UserWarning)
+    warnings.filterwarnings('ignore', category=FutureWarning)
+    warnings.filterwarnings('ignore', category=DeprecationWarning)
+    
+    # Suppress specific library loggers
     logging.getLogger('urllib3').setLevel(logging.ERROR)
     logging.getLogger('transformers').setLevel(logging.ERROR)
     logging.getLogger('faiss').setLevel(logging.ERROR)
     logging.getLogger('librosa').setLevel(logging.ERROR)
     logging.getLogger('huggingface_hub').setLevel(logging.ERROR)
+    logging.getLogger('sentence_transformers').setLevel(logging.ERROR)
+    logging.getLogger('chromadb').setLevel(logging.ERROR)
+    logging.getLogger('langchain').setLevel(logging.ERROR)
+    logging.getLogger('torch').setLevel(logging.ERROR)
+    logging.getLogger('audioread').setLevel(logging.ERROR)
+    logging.getLogger('numba').setLevel(logging.ERROR)
+    logging.getLogger('filelock').setLevel(logging.ERROR)
+    
+    # Suppress pkg_resources deprecation warning
+    warnings.filterwarnings('ignore', message='.*pkg_resources.*')
+    
+    # Suppress Google API Python version warning
+    warnings.filterwarnings('ignore', message='.*Python version.*')
+    
+    # Suppress torch weight_norm warning
+    warnings.filterwarnings('ignore', message='.*weight_norm.*')
+    
+    # Suppress all FutureWarnings from specific modules
+    warnings.filterwarnings('ignore', module='google.*')
+    warnings.filterwarnings('ignore', module='torch.*')
+    warnings.filterwarnings('ignore', module='librosa.*')
