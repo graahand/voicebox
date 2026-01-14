@@ -19,6 +19,15 @@ langchain-community==0.4.1
 chromadb==1.4.0
 gruut==2.2.3
 
+# Wake Word Detection (Picovoice Porcupine)
+pvporcupine
+pyaudio
+
+# Real-time Search (Tavily)
+tavily-python
+
+# Environment variables
+python-dotenv
 
 # Legacy RAG support (optional)
 faiss-cpu

@@ -1,5 +1,7 @@
 # VoiceBox
 
+pip install pvporcupine pyaudio tavily-python python-dotenv
+
 An interactive voice assistant powered by AI, combining Large Language Models (LLM), Text-to-Speech (TTS), Speech-to-Text (STT), and Retrieval-Augmented Generation (RAG) technologies.
 
 ## Overview

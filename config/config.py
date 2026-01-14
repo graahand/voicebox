@@ -3,8 +3,16 @@ Configuration module for VoiceBox project.
 This module manages all configuration settings including paths, model settings, and system prompts.
 """
 
+import os
 from pathlib import Path
 from typing import Dict, Any
+
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
 
 
 class Config:
@@ -70,6 +78,23 @@ class Config:
     
     # Source data file
     RAG_SOURCE_FILE: str = "source_data_structured.md"  # Structured source data
+    
+    # Wake Word settings (Picovoice Porcupine)
+    WAKEWORD_ENABLED: bool = True
+    WAKEWORD_MODEL_DIR: Path = DATA_DIR / "vision_en_raspberry-pi_v4_0_0"
+    WAKEWORD_SENSITIVITY: float = 0.5  # 0.0 to 1.0 (higher = more sensitive)
+    
+    # Search settings (Tavily)
+    SEARCH_ENABLED: bool = True
+    SEARCH_MAX_RESULTS: int = 3
+    SEARCH_DEPTH: str = "basic"  # "basic" or "advanced"
+    
+    # Audio recording settings
+    RECORDING_DURATION: int = 6  # Default recording duration in seconds
+    
+    # Interrupt settings
+    INTERRUPT_ENABLED: bool = True  # Allow interrupting TTS with keypress
+    INTERRUPT_KEYS: list = ['s', 'q']  # Keys that interrupt playback
     
     @classmethod
     def load_system_prompt(cls) -> str:

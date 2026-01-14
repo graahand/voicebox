@@ -1,6 +1,7 @@
 """
 LLM Handler module for VoiceBox project.
 Manages interaction with Ollama LLM using singleton pattern with LangChain RAG support.
+Includes real-time search integration via Tavily.
 """
 
 import ollama
@@ -52,6 +53,9 @@ class LLMHandler:
         self._max_length: int = Config.MAX_RESPONSE_LENGTH
         self._temperature: float = Config.TEMPERATURE
         self._rag_handler = None
+        self._search_handler = None
+        self._search_enabled: bool = True
+        self._rag_enabled: bool = True
         self._initialized = True
         
         # Verify model is available
@@ -59,6 +63,29 @@ class LLMHandler:
         
         # Initialize RAG handler
         self._init_rag()
+        
+        # Initialize Search handler
+        self._init_search()
+    
+    def _init_search(self) -> None:
+        """
+        Initialize the Tavily search handler.
+        """
+        try:
+            from modules.search_handler import SearchHandler
+            self._search_handler = SearchHandler()
+            
+            if self._search_handler.is_enabled:
+                logger.info("Search handler initialized successfully")
+            else:
+                logger.warning("Search handler initialized but not enabled (check API key)")
+                
+        except ImportError as e:
+            logger.warning(f"Could not import search handler: {e}")
+            self._search_handler = None
+        except Exception as e:
+            logger.error(f"Failed to initialize search handler: {e}", exc_info=True)
+            self._search_handler = None
     
     def _init_rag(self) -> None:
         """
@@ -108,7 +135,7 @@ class LLMHandler:
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Tuple[str, List[Dict[str, Any]]]:
         """
-        Generate a response from the LLM with RAG support.
+        Generate a response from the LLM with RAG and search support.
         
         Args:
             user_input: The user's input text.
@@ -118,30 +145,55 @@ class LLMHandler:
             Tuple of (response_text, source_attributions)
         """
         try:
-            # Always try to get RAG context (no topic filtering - dynamic RAG)
             rag_context = ""
+            search_context = ""
             attributions = []
             
-            if self._rag_handler:
+            # Check if search is needed for real-time information
+            if self._search_enabled and self._search_handler and self._search_handler.is_enabled:
+                if self._search_handler.needs_search(user_input):
+                    logger.info(f"Query requires search: {user_input}")
+                    search_context, search_attrs = self._search_handler.search(user_input)
+                    if search_context:
+                        logger.info(f"Search: Retrieved {len(search_context)} chars from web")
+                        # Add search attributions with type marker
+                        for attr in search_attrs:
+                            attr['type'] = 'web_search'
+                        attributions.extend(search_attrs)
+            
+            # Get RAG context (local knowledge base)
+            if self._rag_enabled and self._rag_handler:
                 logger.debug(f"Retrieving RAG context for: {user_input}")
-                rag_context, attributions = self._rag_handler.search_context(user_input)
+                rag_context, rag_attrs = self._rag_handler.search_context(user_input)
                 
                 if rag_context:
-                    logger.info(f"RAG: Retrieved {len(rag_context)} chars from {len(attributions)} sources")
+                    logger.info(f"RAG: Retrieved {len(rag_context)} chars from {len(rag_attrs)} sources")
+                    # Add RAG attributions with type marker
+                    for attr in rag_attrs:
+                        attr['type'] = 'local_knowledge'
+                    attributions.extend(rag_attrs)
                 else:
                     logger.debug("RAG: No relevant context found for query")
             
-            # Build system prompt with RAG context if available
+            # Build system prompt with context
             system_prompt = self._system_prompt
+            
+            # Combine contexts
+            combined_context = ""
+            if search_context:
+                combined_context += f"\n[REAL-TIME WEB INFORMATION]\n{search_context}\n"
             if rag_context:
+                combined_context += f"\n[LOCAL KNOWLEDGE BASE]\n{rag_context}\n"
+            
+            if combined_context:
                 system_prompt = f"""{self._system_prompt}
 
-IMPORTANT: Use the following verified information to answer questions:
-
-{rag_context}
+IMPORTANT: Use the following information to answer questions:
+{combined_context}
 
 INSTRUCTIONS:
 - Answer the user's question directly using the information above
+- For real-time data (stocks, weather, news), prioritize web search results
 - Do NOT start with greetings if the user asked a specific question
 - Keep responses brief, conversational, and easy to speak aloud
 - If the information above does not contain the answer, say you do not have that information
@@ -220,7 +272,22 @@ INSTRUCTIONS:
     @property
     def rag_enabled(self) -> bool:
         """Check if RAG is enabled and ready."""
-        return self._rag_handler is not None and self._rag_handler.is_ready
+        return self._rag_enabled and self._rag_handler is not None and self._rag_handler.is_ready
+    
+    @property
+    def search_enabled(self) -> bool:
+        """Check if search is enabled and ready."""
+        return self._search_enabled and self._search_handler is not None and self._search_handler.is_enabled
+    
+    def set_rag_enabled(self, enabled: bool) -> None:
+        """Enable or disable RAG."""
+        self._rag_enabled = enabled
+        logger.info(f"RAG {'enabled' if enabled else 'disabled'}")
+    
+    def set_search_enabled(self, enabled: bool) -> None:
+        """Enable or disable search."""
+        self._search_enabled = enabled
+        logger.info(f"Search {'enabled' if enabled else 'disabled'}")
 
 
 def main() -> None:
