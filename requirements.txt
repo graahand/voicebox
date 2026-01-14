@@ -1,7 +1,7 @@
-# MeloTTS and dependencies
-melo-tts
-unidic-lite
+# PiperTTS and dependencies
+piper-tts
 soundfile
+onnxruntime
 
 # STT
 faster-whisper

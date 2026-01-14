@@ -6,7 +6,7 @@ An interactive voice assistant powered by AI, combining Large Language Models (L
 
 VoiceBox is an interactive voice assistant that integrates:
 - **LLM Backend**: Ollama for intelligent conversation
-- **Text-to-Speech**: MeloTTS for natural voice synthesis
+- **Text-to-Speech**: PiperTTS for natural voice synthesis
 - **Speech-to-Text**: faster-whisper for accurate transcription with VAD
 - **RAG System**: LangChain with ChromaDB for context-aware responses
 - **Conversation Management**: JSON-based logging with timestamps and metadata
@@ -17,7 +17,7 @@ Developed by Skill Museum.
 
 - **Modular Architecture**: Clean, maintainable code with singleton pattern for resource management
 - **Conversational AI**: Context-aware responses with LangChain RAG integration
-- **Natural Speech**: High-quality voice synthesis with MeloTTS
+- **Natural Speech**: High-quality voice synthesis with PiperTTS
 - **Accurate Transcription**: Fast speech recognition with Voice Activity Detection
 - **Semantic Search**: LangChain-powered RAG with source attribution
 - **Conversation Logging**: Automatic JSON logging with timestamps and statistics
@@ -37,7 +37,7 @@ test_voicebox/
 │   ├── __init__.py
 │   ├── llm_handler.py         # LLM integration (Ollama)
 │   ├── langchain_rag_handler.py # LangChain RAG with ChromaDB
-│   ├── tts_handler.py         # Text-to-Speech (MeloTTS)
+│   ├── tts_handler.py         # Text-to-Speech (PiperTTS)
 │   ├── stt_handler.py         # Speech-to-Text (faster-whisper)
 │   ├── conversation_manager.py # Conversation history and logging
 │   └── response_formatter.py  # Response text formatting
@@ -56,7 +56,6 @@ test_voicebox/
 │   ├── test_response_formatter.py    # Response formatter tests
 │   └── test_system.py         # System integration tests
 ├── logs/                      # Application logs
-├── MeloTTS/                   # MeloTTS package
 ├── main.py                    # Main controller
 ├── requirements.txt           # Python dependencies
 ├── pytest.ini                 # Test configuration
@@ -68,9 +67,8 @@ test_voicebox/
 ## Requirements
 
 - Python 3.8+
-- CUDA-compatible GPU (recommended for faster-whisper)
+- CUDA-compatible GPU (recommended for faster-whisper and PiperTTS)
 - Ollama installed and running
-- espeak-ng (for MeloTTS)
 
 ## Installation
 
@@ -78,6 +76,8 @@ test_voicebox/
 
 #### On Ubuntu/Debian:
 ```bash
+sudo apt-get update
+sudo apt-get install alsa-utils
 sudo apt-get update
 sudo apt-get install espeak-ng alsa-utils
 ```
@@ -312,7 +312,7 @@ Developed by Skill Museum.
 ## Acknowledgments
 
 - **Ollama**: LLM backend framework
-- **MeloTTS**: Text-to-Speech engine
+- **PiperTTS**: Text-to-Speech engine
 - **faster-whisper**: Speech-to-Text engine
 - **LangChain**: RAG framework
 - **ChromaDB**: Vector database

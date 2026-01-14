@@ -30,12 +30,13 @@ class Config:
     LLM_MODEL: str = "qwen2:1.5b"
     OLLAMA_HOST: str = "http://localhost:11434"
     
-    # TTS settings (MeloTTS)
-    TTS_LANGUAGE: str = "EN"  # Language code for MeloTTS
-    TTS_SPEAKER: str = "EN-AU"  # Speaker accent (EN-US, EN-BR, EN_INDIA, EN-AU, EN-Default)
-    TTS_SPEED: float = 1.0  # Speech speed (adjustable)
-    TTS_DEVICE: str = "auto"  # Device: 'auto', 'cpu', 'cuda', 'cuda:0', 'mps'
-    TTS_SAMPLE_RATE: int = 44100  # MeloTTS sample rate
+    # TTS settings (PiperTTS)
+    TTS_VOICE_MODEL: str = "en_US-lessac-medium"  # Piper voice model name
+    TTS_VOICE_PATH: str = ""  # Path to .onnx voice file (auto-download if empty)
+    TTS_SPEED: float = 1.0  # Speech speed (length_scale: higher = slower)
+    TTS_VOLUME: float = 1.0  # Volume level (0.0 to 1.0)
+    TTS_USE_CUDA: bool = True  # Use GPU acceleration if available
+    TTS_SAMPLE_RATE: int = 22050  # PiperTTS sample rate
     
     # STT settings
     STT_MODEL_SIZE: str = "small"
