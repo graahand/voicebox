@@ -5,6 +5,7 @@ Includes real-time search integration via Tavily.
 """
 
 import ollama
+from ollama import chat
 from typing import Optional, Dict, Any, List, Tuple
 import sys
 from pathlib import Path
@@ -213,18 +214,38 @@ INSTRUCTIONS:
             # Add current user input
             messages.append({'role': 'user', 'content': user_input})
             
-            # Generate response
-            response: Dict[str, Any] = ollama.chat(
-                model=self._model_name,
-                messages=messages,
-                options={
-                    'temperature': self._temperature,
-                    'num_predict': self._max_length
-                }
+            # Check if model supports thinking
+            supports_thinking = Config.ENABLE_THINKING and any(
+                self._model_name.startswith(model) for model in Config.THINKING_MODELS
             )
             
-            # Extract response text
-            response_text: str = response['message']['content']
+            # Generate response
+            if supports_thinking:
+                logger.info(f"Using thinking mode for model: {self._model_name}")
+                response = chat(self._model_name, messages=messages, think=False)
+                
+                # Extract thinking and response
+                thinking_process = getattr(response.message, 'thinking', '')
+                response_text = response.message.content
+                
+                if thinking_process:
+                    logger.info(f"Thinking process ({len(thinking_process)} chars)")
+                    logger.debug(f"Thinking: {thinking_process[:200]}...")
+                    # Add thinking to response for display (optional)
+                    # Uncomment to include thinking in conversation
+                    # response_text = f"[Thinking: {thinking_process}]\n\n{response_text}"
+            else:
+                response: Dict[str, Any] = ollama.chat(
+                    model=self._model_name,
+                    messages=messages,
+                    options={
+                        'temperature': self._temperature,
+                        'num_predict': self._max_length
+                    }, 
+                    think=False
+                )
+                response_text: str = response['message']['content']
+            
             logger.debug(f"Generated response ({len(response_text)} chars)")
             
             return response_text.strip(), attributions
@@ -237,17 +258,38 @@ INSTRUCTIONS:
     def get_source_attribution_text(self, attributions: List[Dict[str, Any]]) -> str:
         """
         Get formatted source attribution text.
+        Handles both RAG attributions (section, score) and search attributions (title, url).
         
         Args:
-            attributions: List of source attributions from RAG.
+            attributions: List of source attributions from RAG or search.
         
         Returns:
             Formatted attribution string.
         """
-        if not attributions or not self._rag_handler:
+        if not attributions:
             return ""
         
-        return self._rag_handler.get_source_attribution_text(attributions)
+        # Detect attribution type by checking first item keys
+        first_attr = attributions[0]
+        
+        # RAG attributions have 'section' key
+        if 'section' in first_attr:
+            if self._rag_handler:
+                return self._rag_handler.get_source_attribution_text(attributions)
+            return ""
+        
+        # Search attributions have 'title' and 'url' keys
+        elif 'title' in first_attr:
+            lines = ["Information retrieved from web:"]
+            for i, attr in enumerate(attributions, 1):
+                title = attr.get('title', 'Unknown')
+                url = attr.get('url', '')
+                lines.append(f"  {i}. {title}")
+                if url:
+                    lines.append(f"     {url}")
+            return "\n".join(lines)
+        
+        return ""
     
     @property
     def model_name(self) -> str:

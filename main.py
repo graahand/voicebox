@@ -42,8 +42,8 @@ ENABLE_STT: bool = True           # Speech-to-Text transcription
 ENABLE_TTS: bool = True           # Text-to-Speech audio output
 ENABLE_RAG: bool = True           # RAG context retrieval
 ENABLE_SEARCH: bool = True        # Real-time web search (Tavily)
-ENABLE_WAKEWORD: bool = True      # Wake word detection (Porcupine)
-ENABLE_INTERRUPT: bool = True     # Allow interrupting TTS with keypress/wake word
+ENABLE_WAKEWORD: bool = False     # Wake word detection (Porcupine)
+ENABLE_INTERRUPT: bool = True    # Allow interrupting TTS with keypress/wake word
 # ============================================================================
 
 

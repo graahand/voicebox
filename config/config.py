@@ -35,7 +35,7 @@ class Config:
     SYSTEM_PROMPT_PATH: Path = CONFIG_DIR / "system_prompt.txt"
     
     # Model settings
-    LLM_MODEL: str = "qwen2:1.5b"
+    LLM_MODEL: str = "qwen3:0.6b"
     OLLAMA_HOST: str = "http://localhost:11434"
     
     # TTS settings (PiperTTS)
@@ -57,6 +57,8 @@ class Config:
     # LLM generation settings
     MAX_RESPONSE_LENGTH: int = 200
     TEMPERATURE: float = 0.5
+    ENABLE_THINKING: bool = False  # Enable thinking feature for supported models (deepseek-r1, etc.)
+    THINKING_MODELS: list = ['qwen3:1.7b','qwen3:0.6b', 'deepseek-r1', 'deepseek-r1:1.5b', 'deepseek-r1:7b', 'deepseek-r1:14b', 'deepseek-r1:32b', 'deepseek-r1:70b']  # Models that support thinking
     
     # RAG settings
     RAG_TOP_K: int = 5  # Number of top sections to retrieve
@@ -78,6 +80,9 @@ class Config:
     
     # Source data file
     RAG_SOURCE_FILE: str = "source_data_structured.md"  # Structured source data
+    
+    # Search settings
+    SEARCH_HANDLER_TYPE: str = "intent"  # Search handler type: 'intent' (LLM-based) or 'heuristic' (keyword-based)
     
     # Wake Word settings (Picovoice Porcupine)
     WAKEWORD_ENABLED: bool = True

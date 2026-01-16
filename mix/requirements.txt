@@ -1,0 +1,52 @@
+# PiperTTS and dependencies
+piper-tts
+soundfile
+onnxruntime
+
+# STT
+faster-whisper
+
+# LLM
+ollama
+
+# RAG - LangChain with ChromaDB (recommended)
+langchain==1.2.3
+lanchain-classic==1.0.1
+langchain-text-splitters==1.1.0
+langgraph==1.0.6
+langsmith==0.6.2
+langchain-community==0.4.1
+chromadb==1.4.0
+gruut==2.2.3
+
+# Wake Word Detection (Picovoice Porcupine)
+pvporcupine
+pyaudio
+
+# Real-time Search (Tavily)
+tavily-python
+
+# Environment variables
+python-dotenv
+
+# Legacy RAG support (optional)
+faiss-cpu
+nltk
+
+# Core dependencies
+
+
+# Testing
+pytest>=7.0.0
+pytest-cov
+
+# conflicts
+
+protobuf==6.33.3
+sentence-transformers==5.2.0
+opentelemetry-api==1.39.1
+opentelemetry-sdk==1.39.1
+opentelemetry-proto==1.39.1
+numpy==1.26.4
+transformers==4.47.3
+

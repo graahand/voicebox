@@ -72,6 +72,10 @@ Futuruma showcases projects in the following technology areas:
 
 ---
 
+## what are the projects being showcase in 2026 futuruma?
+
+laser tag, skin health analysis, self-balancing robots, obstacle avoidance robot, bhavisyawani, hack me, AI safari, voicebox, 3d printer
+
 ## Robotics Projects
 
 All robotics projects are developed by Skill Museum.
