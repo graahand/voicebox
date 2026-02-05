@@ -1,0 +1,8 @@
+# VoiceBox API Server Requirements
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+websockets==12.0
+python-multipart==0.0.6
+
+# Existing VoiceBox requirements should also be installed
+# Install with: pip install -r requirements.txt (if exists) && pip install -r api_requirements.txt

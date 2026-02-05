@@ -20,4 +20,5 @@ data/audio/*.mp3
 *.swo
 *~
 MeloTTS
+node_modules
 
