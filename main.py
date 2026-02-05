@@ -21,6 +21,20 @@ import subprocess
 import tempfile
 import os
 import threading
+import numpy as np
+
+# Try to import Python audio libraries (preferred over subprocess)
+try:
+    import sounddevice as sd
+    import soundfile as sf
+    AUDIO_BACKEND = 'sounddevice'
+except ImportError:
+    try:
+        import pyaudio
+        import wave
+        AUDIO_BACKEND = 'pyaudio'
+    except ImportError:
+        AUDIO_BACKEND = 'subprocess'
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -32,6 +46,9 @@ from config.logger import get_logger, suppress_library_warnings
 suppress_library_warnings()
 
 logger = get_logger('main')
+
+# Log audio backend status
+logger.info(f"Audio backend initialized: {AUDIO_BACKEND}")
 
 
 # ============================================================================
@@ -387,19 +404,60 @@ class VoiceBoxController:
     
     def _play_audio(self, audio_path: Path) -> None:
         """
-        Play audio file using system audio player (non-interruptible).
+        Play audio file using Python libraries (preferred) or system player (fallback).
         
         Args:
             audio_path: Path to the audio file to play.
         """
         try:
-            # Try different audio players based on availability
+            logger.info(f"Playing audio with backend: {AUDIO_BACKEND}")
+            
+            if AUDIO_BACKEND == 'sounddevice':
+                # Use sounddevice (recommended for Jetson)
+                import sounddevice as sd
+                import soundfile as sf
+                
+                data, samplerate = sf.read(str(audio_path))
+                sd.play(data, samplerate)
+                sd.wait()  # Wait until playback is finished
+                logger.info("Audio played successfully with sounddevice")
+                return
+                
+            elif AUDIO_BACKEND == 'pyaudio':
+                # Use PyAudio
+                import pyaudio
+                import wave
+                
+                wf = wave.open(str(audio_path), 'rb')
+                p = pyaudio.PyAudio()
+                
+                stream = p.open(
+                    format=p.get_format_from_width(wf.getsampwidth()),
+                    channels=wf.getnchannels(),
+                    rate=wf.getframerate(),
+                    output=True
+                )
+                
+                chunk_size = 1024
+                data = wf.readframes(chunk_size)
+                
+                while data:
+                    stream.write(data)
+                    data = wf.readframes(chunk_size)
+                
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+                wf.close()
+                logger.info("Audio played successfully with PyAudio")
+                return
+            
+            # Fallback to subprocess players
             players = ['aplay', 'ffplay', 'mpg123', 'sox']
             
             for player in players:
                 try:
                     if player == 'ffplay':
-                        # ffplay with auto-exit and no video
                         subprocess.run(
                             ['ffplay', '-nodisp', '-autoexit', str(audio_path)],
                             stdout=subprocess.DEVNULL,
@@ -407,7 +465,6 @@ class VoiceBoxController:
                             check=True
                         )
                     elif player == 'aplay':
-                        # aplay (ALSA player for Linux)
                         subprocess.run(
                             ['aplay', str(audio_path)],
                             stdout=subprocess.DEVNULL,
@@ -415,16 +472,15 @@ class VoiceBoxController:
                             check=True
                         )
                     else:
-                        # Generic player
                         subprocess.run(
                             [player, str(audio_path)],
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL,
                             check=True
                         )
-                    return  # Success, exit
+                    return
                 except (FileNotFoundError, subprocess.CalledProcessError):
-                    continue  # Try next player
+                    continue
             
             logger.warning("No audio player found")
             print(f"Warning: No audio player found. Audio saved to: {audio_path}")
@@ -435,16 +491,17 @@ class VoiceBoxController:
     
     def _record_audio(self, duration: int = 6) -> Optional[Path]:
         """
-        Record audio from microphone using available recording tools.
+        Record audio from microphone using Python libraries (preferred) or system tools (fallback).
         
         Args:
-            duration: Recording duration in seconds (default: 5).
+            duration: Recording duration in seconds (default: 6).
         
         Returns:   
             Optional[Path]: Path to recorded audio file, or None if failed.
         """
         try:
-            logger.info(f"Starting audio recording for {duration} seconds")
+            logger.info(f"Starting audio recording for {duration} seconds with backend: {AUDIO_BACKEND}")
+            
             # Create temporary file for recording
             temp_file = tempfile.NamedTemporaryFile(
                 suffix='.wav',
@@ -455,22 +512,83 @@ class VoiceBoxController:
             temp_file.close()
             logger.debug(f"Recording to temporary file: {temp_path}")
             
-            print(f"[Recording] Recording for {duration} seconds... Speak now!")
+            print(f"🎤 Recording for {duration} seconds... Speak now!")
             
-            # Try different recording methods
+            if AUDIO_BACKEND == 'sounddevice':
+                # Use sounddevice (recommended for Jetson)
+                import sounddevice as sd
+                import soundfile as sf
+                
+                samplerate = 16000
+                channels = 1
+                
+                recording = sd.rec(
+                    int(duration * samplerate),
+                    samplerate=samplerate,
+                    channels=channels,
+                    dtype='int16'
+                )
+                sd.wait()  # Wait until recording is finished
+                
+                sf.write(str(temp_path), recording, samplerate)
+                logger.info(f"Recording saved with sounddevice: {temp_path} ({temp_path.stat().st_size} bytes)")
+                print("✓ Recording complete!")
+                return temp_path
+                
+            elif AUDIO_BACKEND == 'pyaudio':
+                # Use PyAudio
+                import pyaudio
+                import wave
+                
+                p = pyaudio.PyAudio()
+                
+                samplerate = 16000
+                channels = 1
+                chunk_size = 1024
+                audio_format = pyaudio.paInt16
+                
+                stream = p.open(
+                    format=audio_format,
+                    channels=channels,
+                    rate=samplerate,
+                    input=True,
+                    frames_per_buffer=chunk_size
+                )
+                
+                frames = []
+                num_chunks = int(samplerate / chunk_size * duration)
+                
+                for _ in range(num_chunks):
+                    data = stream.read(chunk_size)
+                    frames.append(data)
+                
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+                
+                # Save to WAV file
+                wf = wave.open(str(temp_path), 'wb')
+                wf.setnchannels(channels)
+                wf.setsampwidth(p.get_sample_size(audio_format))
+                wf.setframerate(samplerate)
+                wf.writeframes(b''.join(frames))
+                wf.close()
+                
+                logger.info(f"Recording saved with PyAudio: {temp_path} ({temp_path.stat().st_size} bytes)")
+                print("✓ Recording complete!")
+                return temp_path
+            
+            # Fallback to subprocess recorders
             recorders = [
-                # arecord (ALSA recorder for Linux)
                 ['arecord', '-d', str(duration), '-f', 'cd', str(temp_path)],
-                # ffmpeg
                 ['ffmpeg', '-f', 'alsa', '-i', 'default', '-t', str(duration), '-y', str(temp_path)],
-                # sox
                 ['rec', '-r', '16000', '-c', '1', str(temp_path), 'trim', '0', str(duration)]
             ]
             
             for cmd in recorders:
                 try:
                     logger.debug(f"Trying recorder: {cmd[0]}")
-                    result = subprocess.run(
+                    subprocess.run(
                         cmd,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
@@ -487,7 +605,7 @@ class VoiceBoxController:
                     continue
             
             logger.error("No recording tool found")
-            print("Error: No recording tool found (arecord, ffmpeg, or sox required)")
+            print("Error: No recording tool available (install sounddevice, pyaudio, or system tools)")
             if temp_path.exists():
                 temp_path.unlink()
             return None
